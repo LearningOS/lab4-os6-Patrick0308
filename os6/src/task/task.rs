@@ -2,7 +2,7 @@
 
 use super::TaskContext;
 use super::{pid_alloc, KernelStack, PidHandle};
-use crate::config::TRAP_CONTEXT;
+use crate::config::{TRAP_CONTEXT,MAX_SYSCALL_NUM};
 use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::sync::UPSafeCell;
 use crate::trap::{trap_handler, TrapContext};
@@ -12,6 +12,7 @@ use core::cell::RefMut;
 use crate::fs::{File, Stdin, Stdout};
 use alloc::string::String;
 use crate::mm::translated_refmut;
+use core::cmp::Ordering;
 
 /// Task control block structure
 ///
@@ -50,6 +51,8 @@ pub struct TaskControlBlockInner {
     /// It is set when active exit or execution error occurs
     pub exit_code: i32,
     pub fd_table: Vec<Option<Arc<dyn File + Send + Sync>>>,
+    pub syscall_times: [u32; MAX_SYSCALL_NUM],
+    pub start_time: usize,
 }
 
 /// Simple access to its internal fields
@@ -124,6 +127,8 @@ impl TaskControlBlock {
                         // 2 -> stderr
                         Some(Arc::new(Stdout)),
                     ],
+                    syscall_times: [0; MAX_SYSCALL_NUM],
+                    start_time: 0,
                 })
             },
         };
@@ -200,6 +205,8 @@ impl TaskControlBlock {
                     children: Vec::new(),
                     exit_code: 0,
                     fd_table: new_fd_table,
+                    syscall_times: [0; MAX_SYSCALL_NUM],
+                    start_time: 0,
                 })
             },
         });
